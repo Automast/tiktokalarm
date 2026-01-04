@@ -1,0 +1,16 @@
+{
+  "name": "tiktok-alarm-bot",
+  "version": "1.0.0",
+  "description": "TikTok Posting Alarm Bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.61.0",
+    "luxon": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
