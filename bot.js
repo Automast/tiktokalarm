@@ -1,10 +1,8 @@
 const TelegramBot = require('node-telegram-bot-api');
 const { DateTime } = require('luxon');
 
-// --- USER CONFIGURATION (FILL THESE) ---
-// 1. Get Token from @BotFather on Telegram
+// --- USER CONFIGURATION ---
 const TOKEN = '8374668400:AAHhqLLW9U32kIjrL_3yluzRmTh92aK8sh8'; 
-// 2. Get your Chat ID from @userinfobot (it's a number like 123456789)
 const YOUR_CHAT_ID = '1277452628'; 
 
 // --- THE SCHEDULE (New York Time) ---
@@ -23,11 +21,27 @@ const bot = new TelegramBot(TOKEN, { polling: true });
 
 // State variables to track alarms
 let activeAlarm = null; // { time: '08:00 AM', lastNag: timestamp }
-let completedSlots = new Set(); // Stores 'Day-Time' strings (e.g., "Monday-06:00 AM")
+let completedSlots = new Set(); // Stores 'Day-Time' strings
 
 console.log("Bot started. Monitoring New York time...");
 
-// Handle "Done" button clicks
+// --- COMMANDS ---
+
+// 1. /test command - Triggers a fake alarm immediately
+bot.onText(/\/test/, (msg) => {
+    const chatId = msg.chat.id;
+    // Security check: ensure only YOU can test it
+    if (chatId.toString() !== YOUR_CHAT_ID) return;
+
+    if (activeAlarm) {
+        bot.sendMessage(chatId, "⚠️ An alarm is already active! Clear it first by clicking 'Done'.");
+    } else {
+        bot.sendMessage(chatId, "🧪 Starting Test Mode...");
+        startAlarm('TEST MODE');
+    }
+});
+
+// 2. Handle "Done" button clicks
 bot.on('callback_query', (query) => {
     const data = query.data;
     const chatId = query.message.chat.id;
@@ -35,33 +49,35 @@ bot.on('callback_query', (query) => {
     if (data === 'stop_alarm') {
         if (activeAlarm) {
             const nowNY = DateTime.now().setZone('America/New_York');
-            const dayName = nowNY.toFormat('cccc'); // e.g., "Monday"
+            const dayName = nowNY.toFormat('cccc'); 
             
-            // Mark this slot as completed so it doesn't trigger again today
-            const slotKey = `${dayName}-${activeAlarm.time}`;
-            completedSlots.add(slotKey);
+            // If it's a real scheduled alarm, mark it as done for the day
+            if (activeAlarm.time !== 'TEST MODE') {
+                const slotKey = `${dayName}-${activeAlarm.time}`;
+                completedSlots.add(slotKey);
+            }
             
             bot.sendMessage(chatId, `✅ Great job! Alarm for ${activeAlarm.time} stopped.`);
             
             // Clear the alarm
             activeAlarm = null;
             
-            // Remove the "Done" button from the previous message to clean up
+            // Remove the "Done" button from the previous message
             bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
                 chat_id: chatId,
                 message_id: query.message.message_id
-            }).catch(() => {}); // Ignore errors if message is too old
+            }).catch(() => {}); 
         } else {
             bot.answerCallbackQuery(query.id, { text: "No active alarm to stop." });
         }
     }
 });
 
-// The Heartbeat: Runs every 60 seconds
+// --- HEARTBEAT ---
 setInterval(() => {
     const nowNY = DateTime.now().setZone('America/New_York');
-    const dayName = nowNY.toFormat('cccc'); // "Sunday", "Monday", etc.
-    const currentTimeString = nowNY.toFormat('hh:mm a'); // "08:00 AM"
+    const dayName = nowNY.toFormat('cccc'); 
+    const currentTimeString = nowNY.toFormat('hh:mm a'); 
     
     // 1. Check if we need to START a new alarm
     const todaysSlots = SCHEDULE[dayName];
@@ -84,7 +100,7 @@ setInterval(() => {
         }
     }
 
-    // 3. Reset completed slots at midnight (optional safety cleanup)
+    // 3. Reset completed slots at midnight
     if (currentTimeString === '12:00 AM') {
         completedSlots.clear();
     }
